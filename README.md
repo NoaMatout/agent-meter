@@ -26,6 +26,9 @@ record of consumption: the provider returns the counters on every call, and
 they were being thrown away. Measuring first turned two confident theories into
 two wrong ones in about ten minutes.
 
+The full account, with the numbers and both wrong theories, is written up
+separately as *Je me trompais de coupable* (in French).
+
 ## What it records, and what it never records
 
 Recorded: input tokens, output tokens, the share served from cache, cache
