@@ -110,6 +110,48 @@ ships spans to a backend, because aggregating agent telemetry at the source is
 cheaper than paying twice: once for the tokens, once for the observability
 pipeline that watches them.
 
+## Cost per task
+
+Knowing an agent costs nine cents a day is a number. Knowing which of its jobs
+spends it is a decision. Point the config at your scheduler's execution log,
+read-only, and ask:
+
+```bash
+agent-meter-report agent-meter.toml tasks
+```
+
+```
+cost per task
+  task                      runs  calls       input   output    cost $   per run
+  interactive                  0    540    18293786   155397    0.2190
+  apprentissage-leitner        1     22      333947    15513    0.0326    0.0326
+  macro                        1     24      703388    16215    0.0234    0.0234
+  point-du-soir                1     24      462423    15935    0.0172    0.0172
+  mail-brief                   1     24      383913    12453    0.0139    0.0139
+  urgences-soir               97     41       48390     1533    0.0038    0.0000
+```
+
+The last line is the one to read twice: ninety-seven scheduled executions, only
+forty-one of which reached the model, because a cheap script decides whether
+waking it is worth it. And the most expensive job on that host turned out to be
+the flashcard drill, not the one that triages four mailboxes.
+
+No change is required on the agent side. Any scheduler that records a job id
+with a start and an end will do:
+
+```toml
+[[scheduler]]
+label = "life"                 # only this agent's calls are matched here
+database = "/path/to/executions.db"
+table = "executions"
+job_column = "job_id"
+start_column = "started_at"    # epoch or ISO 8601, both are accepted
+end_column = "finished_at"
+
+[scheduler.names]              # optional, ids are shown as-is without it
+"4082e394fec1" = "mail-brief"
+```
+
 ## Supported providers
 
 Any OpenAI-compatible endpoint, plus Anthropic. The differences are handled in
@@ -139,8 +181,12 @@ end-to-end test asserts it.
 `cache_write` in the price table. By default they are billed at the cache-miss
 rate, which understates them.
 
-**Attribution is per port, not per task.** The relay knows which agent called,
-not which job. Correlating with your scheduler is up to you.
+**Attribution by task is inferred, not declared.** The relay knows which agent
+called. Which job was running is recovered from the scheduler's own execution
+log by time window, which means a call made while two executions overlap is
+credited to the shorter one, and anything outside every window is reported as
+interactive use. It is read-only and requires no change to the agent, but it is
+a correlation, not a tag.
 
 **Tokens are not an invoice.** Your provider's dashboard remains authoritative.
 This tool tells you where the tokens go, not what you owe.

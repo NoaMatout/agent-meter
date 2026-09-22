@@ -8,6 +8,7 @@ import tomllib
 from datetime import datetime
 from pathlib import Path
 
+from .attribute import attribute, load_windows
 from .pricing import Prices
 from .store import Store
 from .usage import Usage
@@ -109,6 +110,47 @@ def refusals(rows) -> None:
         print(f"  {n:4} x  {status}  {message}")
 
 
+def by_task(rows, prices, schedulers, since: float) -> None:
+    """Cost per scheduled job, read from the scheduler's own execution log."""
+    windows = []
+    for sched in schedulers:
+        try:
+            windows.extend(load_windows(sched))
+        except Exception as e:
+            print(f"  scheduler {sched.get('database')}: unreadable ({e})")
+    if not windows:
+        print("\nno scheduler declared, or no execution recorded")
+        return
+
+    grouped = attribute(rows, windows)
+
+    # Executions that predate metering have no calls to their name. Counting
+    # them would divide one run's cost by five and call it an average.
+    metering_started = min((r["ts"] for r in rows), default=since)
+    floor = max(since, metering_started)
+    runs = {}
+    for w in windows:
+        if w.end >= floor:
+            runs[w.job] = runs.get(w.job, 0) + 1
+
+    print("\ncost per task")
+    print(f"  {'task':24} {'runs':>5} {'calls':>6} {'input':>11} {'output':>8} {'cost $':>9} {'per run':>9}")
+    lines = []
+    for job, job_rows in grouped.items():
+        cost, _ = _total_cost(job_rows, prices)
+        n = runs.get(job, 0)
+        lines.append((cost, job, n, job_rows))
+    for cost, job, n, job_rows in sorted(lines, reverse=True):
+        inp = sum(r["input_total"] for r in job_rows)
+        out = sum(r["output"] for r in job_rows)
+        per_run = f"{cost / n:9.4f}" if n else " " * 9
+        print(f"  {job[:24]:24} {n:5} {len(job_rows):6} {inp:11} {out:8} {cost:9.4f} {per_run}")
+
+    total_calls = sum(len(v) for v in grouped.values())
+    if total_calls != len(rows):
+        print(f"  WARNING: {total_calls} calls attributed out of {len(rows)}")
+
+
 def main() -> None:
     args = list(sys.argv[1:])
     config = "agent-meter.toml"
@@ -124,13 +166,19 @@ def main() -> None:
     prices = Prices(raw)
 
     now = time.time()
-    spans = {"day": 86400, "week": 7 * 86400, "all": now}
+    spans = {"day": 86400, "week": 7 * 86400, "all": now, "tasks": 7 * 86400}
     if window not in spans:
-        sys.exit("usage: agent-meter-report [config.toml] [day|week|all]")
+        sys.exit("usage: agent-meter-report [config.toml] [day|week|all|tasks]")
 
     rows = store.read(now - spans[window])
-    titles = {"day": "last 24 hours", "week": "last 7 days", "all": "since metering started"}
+    titles = {"day": "last 24 hours", "week": "last 7 days",
+              "all": "since metering started", "tasks": "last 7 days"}
     summary(titles[window], rows, prices)
+
+    if window == "tasks":
+        by_task(rows, prices, raw.get("scheduler", []), now - spans[window])
+        refusals(rows)
+        return
 
     if window == "day":
         by_hour(rows, prices)

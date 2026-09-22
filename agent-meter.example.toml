@@ -35,3 +35,18 @@ output = 1.98
 multiplier = 2.0
 hours_utc = [[1, 4], [6, 10]]
 weekdays_only = true
+
+# Optional. Recovers which scheduled job made each call, by matching the
+# scheduler's own execution log against call timestamps. Read-only, and no
+# change is needed on the agent side. One block per agent that has a scheduler.
+#
+# [[scheduler]]
+# label = "life"
+# database = "/home/life/.hermes/cron/executions.db"
+# table = "executions"
+# job_column = "job_id"
+# start_column = "started_at"     # epoch seconds or ISO 8601
+# end_column = "finished_at"
+#
+# [scheduler.names]               # optional; without it, ids are shown as-is
+# "4082e394fec1" = "mail-brief"
