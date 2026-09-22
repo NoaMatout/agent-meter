@@ -19,10 +19,18 @@ def _usage(row) -> Usage:
 
 
 def _total_cost(rows, prices) -> tuple[float, int]:
-    """Return the priceable total and how many calls had no known price."""
+    """Return the priceable total and how many calls had no known price.
+
+    A call that consumed nothing is not an unpriced call. Capability probes and
+    refused requests land here in numbers, and counting them as missing prices
+    would bury the one model that genuinely has no price declared.
+    """
     total, unknown = 0.0, 0
     for r in rows:
-        c = prices.cost(_usage(r), r["ts"], r["model"])
+        usage = _usage(r)
+        if usage.is_empty():
+            continue
+        c = prices.cost(usage, r["ts"], r["model"])
         if c is None:
             unknown += 1
         else:

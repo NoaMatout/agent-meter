@@ -67,7 +67,7 @@ last 24 hours
   life              17      522600     21060     94%     0.0190        4
   outside            7      253000     13600     93%     0.0108        0
   total                                                  0.0298
-  5 call(s) with no declared price for their model: not costed.
+  1 call(s) with no declared price for their model: not costed.
 
 by hour
   22/09 02h   13 calls    543660 tokens   0.0190$ ####################################
