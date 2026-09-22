@@ -95,6 +95,20 @@ def heaviest(rows, prices, n: int = 5) -> None:
               f" cached {r['cache_read']:8} {r['duration']:6.1f}s  {cost}")
 
 
+def refusals(rows) -> None:
+    """What the provider actually said when it refused."""
+    refused = {}
+    for r in rows:
+        if (r["status"] or 0) >= 400 and (r["error"] if "error" in r.keys() else None):
+            key = (r["status"], r["error"])
+            refused[key] = refused.get(key, 0) + 1
+    if not refused:
+        return
+    print("\nrefusals, as the provider explained them")
+    for (status, message), n in sorted(refused.items(), key=lambda kv: -kv[1])[:6]:
+        print(f"  {n:4} x  {status}  {message}")
+
+
 def main() -> None:
     args = list(sys.argv[1:])
     config = "agent-meter.toml"
@@ -129,6 +143,7 @@ def main() -> None:
             tokens = sum(r["input_total"] + r["output"] for r in day)
             label = datetime.fromtimestamp(start + 43200).strftime("%d/%m")
             print(f"  {label}  {len(day):4} calls {tokens:10} tokens {cost:9.4f}$")
+    refusals(rows)
     heaviest(rows, prices, 8 if window == "all" else 5)
 
 

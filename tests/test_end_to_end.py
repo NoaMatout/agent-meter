@@ -11,6 +11,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -36,9 +37,21 @@ class Upstream(http.server.BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
 
+    refuse = False
+
     def do_POST(self):
         n = int(self.headers.get("Content-Length") or 0)
         Upstream.received = json.loads(self.rfile.read(n) or b"{}")
+        if Upstream.refuse:
+            payload = json.dumps(
+                {"error": {"message": "unsupported parameter: reasoning_effort",
+                           "type": "invalid_request_error"}}).encode()
+            self.send_response(400)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+            return
         payload = json.dumps(RESPONSE).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -101,6 +114,27 @@ def main() -> int:
             for key, value in expected.items():
                 if row[key] != value:
                     failures.append(f"{key} = {row[key]!r}, expected {value!r}")
+
+        Upstream.refuse = True
+        refused_body = json.dumps({"model": "model-flash",
+                                   "messages": [{"role": "user", "content": "hi"}]}).encode()
+        refused_req = urllib.request.Request(
+            f"http://127.0.0.1:{RELAY_PORT}/v1/chat/completions", data=refused_body,
+            headers={"Content-Type": "application/json", "Authorization": "Bearer dummy"})
+        try:
+            urllib.request.urlopen(refused_req, timeout=20)
+            failures.append("a 400 from upstream was not passed back to the client")
+        except urllib.error.HTTPError as e:
+            if e.code != 400:
+                failures.append(f"upstream 400 surfaced as {e.code}")
+        Upstream.refuse = False
+
+        time.sleep(0.5)
+        refused_rows = [r for r in Store(db).read(0) if (r["status"] or 0) >= 400]
+        if len(refused_rows) != 1:
+            failures.append(f"{len(refused_rows)} refusal(s) recorded instead of one")
+        elif "reasoning_effort" not in (refused_rows[0]["error"] or ""):
+            failures.append(f"provider message not kept: {refused_rows[0]['error']!r}")
 
         report = subprocess.run(
             [sys.executable, "-m", "agent_meter.report", str(config), "all"],

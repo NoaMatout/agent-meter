@@ -36,6 +36,27 @@ DROP_UPSTREAM = {"host", "content-length", "connection", "accept-encoding"}
 DROP_DOWNSTREAM = {"transfer-encoding", "connection", "content-length", "content-encoding"}
 
 
+def _provider_error(status: int, body: bytes) -> str | None:
+    """On a refusal, keep the provider's own message.
+
+    A meter that reports "18 errors" without saying why is the very blind spot
+    it exists to remove. Only the provider's error text is kept, never the
+    request that caused it, and it is truncated.
+    """
+    if status < 400 or not body:
+        return None
+    try:
+        payload = json.loads(body.decode("utf-8", "ignore"))
+    except ValueError:
+        return body.decode("utf-8", "ignore")[:200].strip() or None
+    err = payload.get("error")
+    if isinstance(err, dict):
+        return str(err.get("message") or err)[:200]
+    if isinstance(err, str):
+        return err[:200]
+    return str(payload.get("message") or "")[:200] or None
+
+
 class Relay(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     label = "?"
@@ -96,7 +117,7 @@ class Relay(http.server.BaseHTTPRequestHandler):
             self.send_response(502)
             self.send_header("Content-Length", "0")
             self.end_headers()
-            self._record(model, 502, time.time() - started, None)
+            self._record(model, 502, time.time() - started, None, "upstream unreachable")
             return
 
         self.send_response(response.status)
@@ -128,14 +149,15 @@ class Relay(http.server.BaseHTTPRequestHandler):
         cx.close()
 
         source = whole if (not streaming and whole) else tail
-        self._record(model, response.status, time.time() - started, extract(source))
+        self._record(model, response.status, time.time() - started, extract(source),
+                     _provider_error(response.status, source))
 
-    def _record(self, model, status, duration, usage):
+    def _record(self, model, status, duration, usage, error=None):
         """A failure in the meter must never break a call already answered."""
         if not self.store:
             return
         try:
-            self.store.record(self.label, model, self.path, status, duration, usage)
+            self.store.record(self.label, model, self.path, status, duration, usage, error)
         except Exception:
             pass
 
