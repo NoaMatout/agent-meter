@@ -1,0 +1,17 @@
+[project]
+name = "agent-meter"
+version = "0.1.0"
+description = "Mesure ce qu'un agent consomme reellement, sans le modifier."
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+agent-meter = "agent_meter.proxy:main"
+agent-meter-report = "agent_meter.report:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["agent_meter"]

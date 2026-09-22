@@ -1,0 +1,8 @@
+usage.db
+usage.db-*
+__pycache__/
+*.pyc
+.venv/
+agent-meter.toml
+tests/scratch.*
+examples/demo.db-*

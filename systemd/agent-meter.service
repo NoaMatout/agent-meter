@@ -1,0 +1,18 @@
+[Unit]
+Description=Relais de mesure devant l'API du modele
+After=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/agent-meter /etc/agent-meter.toml
+Restart=always
+RestartSec=2
+DynamicUser=yes
+StateDirectory=agent-meter
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target

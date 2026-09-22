@@ -1,0 +1,37 @@
+# Where the counters live. Nothing else is written to disk.
+database = "/var/lib/agent-meter/usage.db"
+
+# One port per agent. That is what makes consumption attributable without ever
+# reading what is exchanged. Each agent points its base_url at its own port.
+[[listener]]
+label = "life"
+port = 8787
+upstream = "https://api.deepseek.com"
+
+[[listener]]
+label = "outside"
+port = 8788
+upstream = "https://api.deepseek.com"
+
+# Dollars per million tokens. The first `match` found inside the model name
+# wins; an entry without `match` acts as the default. A model with no price is
+# not costed: the report says so instead of adding a misleading zero.
+# Check these with your provider, they change.
+[[price]]
+match = "flash"
+cache_hit = 0.003
+cache_miss = 0.15
+output = 0.60
+
+[[price]]
+match = "pro"
+cache_hit = 0.022
+cache_miss = 0.66
+output = 1.98
+
+# Optional. Some providers charge more during certain hours. Here the rate
+# doubles inside these UTC windows, Monday to Friday.
+[peak]
+multiplier = 2.0
+hours_utc = [[1, 4], [6, 10]]
+weekdays_only = true
