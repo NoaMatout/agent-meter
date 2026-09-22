@@ -94,6 +94,22 @@ guessed:
 - A third of the recorded calls are capability probes to endpoints the provider
   does not implement. They return 404, cost nothing, and were invisible before.
 
+## Prior art
+
+[`cost-per-task`](https://github.com/OptimNow/cost-per-task) uses the same
+mechanism, a local proxy that records real token usage, and answers a different
+question. It is built for FinOps teams and for engineers comparing two models
+on a fixed workload: cost per solved task, success rates with confidence
+intervals, break-even analysis. If that is your question, use it.
+
+This tool is for an agent you operate rather than one you benchmark. It runs
+next to a long-lived agent, attributes spend per agent rather than per
+experiment, keeps the provider's refusal messages so failures are not silent,
+and handles time-of-day pricing. It stores to a local SQLite file and never
+ships spans to a backend, because aggregating agent telemetry at the source is
+cheaper than paying twice: once for the tokens, once for the observability
+pipeline that watches them.
+
 ## Supported providers
 
 Any OpenAI-compatible endpoint, plus Anthropic. The differences are handled in
